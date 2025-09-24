@@ -45,17 +45,47 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-/* Helper: set direction */
-void set_dir(GPIO_TypeDef *port, uint16_t pin, uint8_t dir)
+#define X (0)
+#define Y (1)
+#define Z (2)
+#define A (3)
+
+volatile uint32_t x_step_count = 0;
+volatile uint32_t y_step_count = 0;
+volatile uint32_t z_step_count = 0;
+volatile uint32_t a_step_count = 0;
+
+/* ISR: Count every pulse on TIM2 Channel 1 */
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
-    HAL_GPIO_WritePin(port, pin, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    if(htim->Instance == TIM2 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
+    {
+        x_step_count++;
+    }
+
+    if(htim->Instance == TIM2 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2)
+    {
+        y_step_count++;
+    }
+
+    if(htim->Instance == TIM2 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3)
+    {
+        z_step_count++;
+    }
+
+    if(htim->Instance == TIM2 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4)
+    {
+       a_step_count++;
+    }
 }
 
-/* Start step pulses on chosen channel */
-void start_steps(uint8_t axis, uint32_t freq_hz)
+/* Generate N pulses at given frequency */
+void move_axis(uint8_t axis, uint32_t steps, uint32_t freq_hz, uint8_t dir)
 {
-//    uint32_t timer_clk = HAL_RCC_GetPCLK1Freq(); // e.g. 32 MHz
-    uint32_t prescaler = 31;                     // 1 MHz tick
+
+    // Configure timer frequency
+//    uint32_t timer_clk = HAL_RCC_GetPCLK1Freq();
+    uint32_t prescaler = 31; // 1 MHz tick
     uint32_t arr = (1000000 / freq_hz) - 1;
 
     htim2.Instance->PSC = prescaler;
@@ -65,22 +95,96 @@ void start_steps(uint8_t axis, uint32_t freq_hz)
     htim2.Instance->CCR3 = arr / 2;
     htim2.Instance->CCR4 = arr / 2;
 
-    switch(axis) {
-        case 0: HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1); break; // X
-        case 1: HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); break; // Y
-        case 2: HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3); break; // Z
-        case 3: HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4); break; // A
-    }
-}
+	switch (axis)
+	{
+		case X:
+			// Set direction
+			HAL_GPIO_WritePin(X_DIR_Port, X_DIR_Pin, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+		    x_step_count = 0;
+		    // Enable driver
+//		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_RESET);
 
-/* Stop step pulses */
-void stop_steps(uint8_t axis) {
-    switch(axis) {
-        case 0: HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1); break; // X
-        case 1: HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2); break; // Y
-        case 2: HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_3); break; // Z
-        case 3: HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_4); break; // A
-    }
+		    // Start PWM
+		    HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
+
+		    // Wait until we reach target steps
+		    while(x_step_count < steps);
+
+		    // Stop PWM
+		    HAL_TIM_PWM_Stop_IT(&htim2, TIM_CHANNEL_1);
+//		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_SET);
+
+		    break;
+
+		case Y:
+			// Set direction
+			HAL_GPIO_WritePin(Y_DIR_Port, Y_DIR_Pin, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+		    y_step_count = 0;
+		    // Enable driver
+		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_RESET);
+
+		    // Start PWM
+		    HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_2);
+
+		    // Wait until we reach target steps
+		    while(y_step_count < steps);
+
+		    // Stop PWM
+		    HAL_TIM_PWM_Stop_IT(&htim2, TIM_CHANNEL_2);
+		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_SET);
+
+		    break;
+
+		case Z:
+			// Set direction
+			HAL_GPIO_WritePin(Z_DIR_Port, Z_DIR_Pin, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+		    z_step_count = 0;
+		    // Enable driver
+		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_RESET);
+
+		    // Start PWM
+		    HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_3);
+
+		    // Wait until we reach target steps
+		    while(z_step_count < steps);
+
+		    // Stop PWM
+		    HAL_TIM_PWM_Stop_IT(&htim2, TIM_CHANNEL_3);
+		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_SET);
+
+		    break;
+
+		case A:
+			// Set direction
+			HAL_GPIO_WritePin(A_DIR_Port, A_DIR_Pin, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+		    a_step_count = 0;
+		    // Enable driver
+		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_RESET);
+
+		    // Start PWM
+		    HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_4);
+
+		    // Wait until we reach target steps
+		    while(a_step_count < steps);
+
+		    // Stop PWM
+		    HAL_TIM_PWM_Stop_IT(&htim2, TIM_CHANNEL_4);
+		    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_SET);
+
+		    break;
+	}
+    // Enable driver
+    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_RESET);
+
+    // Start PWM
+    HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
+
+    // Wait until we reach target steps
+    while(x_step_count < steps);
+
+    // Stop PWM
+    HAL_TIM_PWM_Stop_IT(&htim2, TIM_CHANNEL_1);
+    HAL_GPIO_WritePin(EN_Port, EN_Pin, GPIO_PIN_SET);
 }
 /* USER CODE END PV */
 
@@ -137,101 +241,50 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  // Debug vars
   char buf[20];
   uint8_t bufLen = 0;
-  HAL_TIM_StateTypeDef done = 0;
-  uint32_t steps = 2000;
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 	  // Example: Move X axis forward at 1 kHz for ~2s
-//	  set_dir(X_DIR_Port, X_DIR_Pin, 1);   // forward
-//	  start_steps(0, 1000);                // 1 kHz pulses
-//	  HAL_Delay(2000);
-//	  stop_steps(0);
-//	  sprintf(buf,"X forward\n");
-//	  bufLen = sizeof(buf);
-//	  HAL_UART_Transmit(&huart1, buf, bufLen, 100);
+      // Move 1600 steps forward (half revolution at 1/16 microstep)
+//      move_axis(X, 1600, 1000, 1);
+//      HAL_Delay(1000);
 //
-//	  HAL_Delay(500);
-//
-//	  // Move back at 2 kHz for ~2s
-//	  set_dir(X_DIR_Port, X_DIR_Pin, 0);   // reverse
-//	  start_steps(0, 2000);                // 2 kHz pulses
-//	  HAL_Delay(2000);
-//	  stop_steps(0);
-//	  sprintf(buf,"X reverse\n");
-//	  bufLen = sizeof(buf);
-//	  HAL_UART_Transmit(&huart1, buf, bufLen, 100);
-//
-//	  HAL_Delay(500);
+//      // Move back 1600 steps
+//      move_axis(X, 1600, 1000, 0);
+//      HAL_Delay(1000);
 
 	  // Example: Move Y axis forward at 1 kHz for ~2s
-	  set_dir(Y_DIR_Port, Y_DIR_Pin, 1);   // forward
-	  start_steps(1, 500);                // 1 kHz pulses
-	  HAL_Delay(10000);
-	  stop_steps(1);
+      // Move 1600 steps forward (half revolution at 1/16 microstep)
+      move_axis(Y, 254, 1000, 1);
+      HAL_Delay(1000);
 
-	  HAL_Delay(500);
-
-	  set_dir(Y_DIR_Port, Y_DIR_Pin, 0);   // forward
-	  start_steps(1, 500);                // 1 kHz pulses
-	  HAL_Delay(10000);
-	  stop_steps(1);
-
-	  HAL_Delay(500);
+      // Move back 1600 steps
+      move_axis(Y, 100, 1000, 0);
+      HAL_Delay(1000);
 
 	  // Example: Move Z axis forward at 1 kHz for ~2s
-//	  set_dir(Z_DIR_Port, Z_DIR_Pin, 1);   // forward
-//	  start_steps(2, 500);                // 1 kHz pulses
-//	  HAL_Delay(10000);
-//	  stop_steps(2);
+      // Move 1600 steps forward (half revolution at 1/16 microstep)
+//      move_axis(Z, 1600, 1000, 1);
+//      HAL_Delay(1000);
 //
-//	  HAL_Delay(500);
-//
-//	  set_dir(Z_DIR_Port, Z_DIR_Pin, 0);   // forward
-//	  start_steps(2, 500);                // 1 kHz pulses
-//	  HAL_Delay(10000);
-//	  stop_steps(2);
-//
-//	  HAL_Delay(500);
+//      // Move back 1600 steps
+//      move_axis(Z, 1600, 1000, 0);
+//      HAL_Delay(1000);
 
 	  // Example: Move A axis forward at 1 kHz for ~2s
-//	  set_dir(A_DIR_Port, A_DIR_Pin, 1);   // forward
-//	  start_steps(3, 500);                // 1 kHz pulses
-//	  HAL_Delay(10000);
-//	  stop_steps(3);
-//
-//	  HAL_Delay(500);
-//
-//	  set_dir(A_DIR_Port, A_DIR_Pin, 0);   // forward
-//	  start_steps(3, 500);                // 1 kHz pulses
-//	  HAL_Delay(10000);
-//	  stop_steps(3);
-//
-//	  HAL_Delay(500);
-//
-//	  // Move back at 2 kHz for ~2s
-//	  set_dir(A_DIR_Port, A_DIR_Pin, 0);   // reverse
-//	  start_steps(3, 4000);                // 2 kHz pulses
-//	  done = HAL_TIM_PWM_GetState(&htim2);
-//	  while(done == HAL_TIM_STATE_BUSY)
-//	  {
-//		  done = HAL_TIM_PWM_GetState(&htim2);
-//
-//		  sprintf(buf,"done + %d\r\n", done);
-//		  bufLen = sizeof(buf);
-//		  HAL_UART_Transmit(&huart1, buf, bufLen, 100);
-//	  }
-//	  HAL_Delay(4000);
-//	  stop_steps(3);
-//	  sprintf(buf,"A reverse\n");
-//	  bufLen = sizeof(buf);
-//	  HAL_UART_Transmit(&huart1, buf, bufLen, 100);
-//
-//	  HAL_Delay(500);
+      // Move 1600 steps forward (half revolution at 1/16 microstep)
+      move_axis(A, 150, 1000, 1);
+      HAL_Delay(1000);
+
+      // Move back 1600 steps
+      move_axis(A, 35, 1000, 0);
+      HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
